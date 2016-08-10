@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:dubbo="http://code.alibabatech.com/schema/dubbo"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.2.xsd
+       http://code.alibabatech.com/schema/dubbo http://code.alibabatech.com/schema/dubbo/dubbo.xsd">
+
+    <dubbo:application name="account-app"/>
+
+    <dubbo:registry address="zookeeper://127.0.0.1:2181"/>
+
+    <dubbo:protocol name="dubbo" port="20880"/>
+    <dubbo:protocol name="rest" port="8068" contextpath="/account_platform/api" server="tomcat"/>
+    
+    <!-- consumer start -->
+    <dubbo:reference 
+        id="trxClient" 
+        timeout="100000"
+        interface="com.lp.transaction.client.api.TransactionClient"
+        check="false"
+        />
+    <!-- consumer end -->
+        
+    <!-- provider start -->
+    <dubbo:service interface="com.lp.account.server.rest.AccountCallback" ref="accountCallback" protocol="rest"/>
+    <bean id="accountCallback" class="com.lp.account.server.rest.impl.DefaultAccountCallback" />
+    
+    <dubbo:service interface="com.lp.account.client.api.AccountApi" ref="accountApi" protocol="dubbo"/>
+    <bean id="accountApi" class="com.lp.account.server.rpc.DefaultAccountApi" />
+	<!-- provider end -->
+</beans>

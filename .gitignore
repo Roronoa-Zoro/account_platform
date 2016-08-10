@@ -1,0 +1,12 @@
+.classpath
+.project
+.settings/
+.idea/
+.sonar/
+target/
+bin/
+*.iml
+*.bak
+sublime-project
+sublime-project.sublime-workspace
+*.svn/
