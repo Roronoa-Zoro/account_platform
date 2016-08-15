@@ -13,8 +13,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.baomidou.framework.service.impl.SuperServiceImpl;
 import com.lp.account.client.enums.OperationType;
 import com.lp.account.server.bo.RequestBO;
+import com.lp.account.server.dao.CashflowMapper;
 import com.lp.account.server.dao.RequestMapper;
 import com.lp.account.server.entity.AccountEntity;
+import com.lp.account.server.entity.CashflowEntity;
 import com.lp.account.server.entity.RequestDetailEntity;
 import com.lp.account.server.entity.RequestEntity;
 import com.lp.account.server.service.AccountService;
@@ -36,6 +38,8 @@ public class RequestServiceImpl extends SuperServiceImpl<RequestMapper, RequestE
 	RequestDetailService rds;
 	@Autowired
 	AccountService as;
+	@Autowired
+	CashflowMapper cashflow;
 	@Autowired
 	TransactionClient trxClient;
 	@Value("${account.callback.commit}")
@@ -75,22 +79,37 @@ public class RequestServiceImpl extends SuperServiceImpl<RequestMapper, RequestE
 			map.put(detail.getAccId(), detail);
 		});
 		List<AccountEntity> accounts = as.selectBatchIds(accIdList);
+		List<CashflowEntity> flows = new ArrayList<>(accounts.size());
 		LocalDateTime current = LocalDateTime.now();
 		accounts.forEach(acc -> {
+			CashflowEntity flow = new CashflowEntity();
 			RequestDetailEntity de = map.get(acc.getAccId());
 			if (OperationType.Plus.getType() == de.getOperateType()) {
 				acc.setTransitAmount(acc.getTransitAmount().add(de.getAmount()));
 				acc.setUpdateTime(current);
+				flow.setAccId(acc.getAccId());
+				flow.setFlowAmount(de.getAmount());
+				flow.setFlowDesc("充值操作,资金先进入transitAmount");
+				flow.setCreateTime(current);
+				flow.setUpdateTime(current);
+				flows.add(flow);
 				return;
 			}
 			if (OperationType.Minus.getType() == de.getOperateType()) {
 				acc.setTransitAmount(acc.getTransitAmount().add(de.getAmount()));
 				acc.setAvailAmount(acc.getAvailAmount().subtract(de.getAmount()));
 				acc.setUpdateTime(current);
+				flow.setAccId(acc.getAccId());
+				flow.setFlowAmount(de.getAmount());
+				flow.setFlowDesc("支付操作,资金从availAmount先进入到transitAmount");
+				flow.setCreateTime(current);
+				flow.setUpdateTime(current);
+				flows.add(flow);
 			}
 			
 		});
 		as.updateBatchById(accounts);
+		cashflow.insertBatch(flows);
 		log.info("account req:{} is saved", req.getReq().getRequestId());
 		return true;
 	}
@@ -131,20 +150,35 @@ public class RequestServiceImpl extends SuperServiceImpl<RequestMapper, RequestE
 		});
 		LocalDateTime current = LocalDateTime.now();
 		List<AccountEntity> accounts = as.selectBatchIds(accIdList);
+		List<CashflowEntity> flows = new ArrayList<>(accounts.size());
 		accounts.forEach(acc -> {
+			CashflowEntity flow = new CashflowEntity();
 			RequestDetailEntity de = map.get(acc.getAccId());
 			if (OperationType.Plus.getType() == de.getOperateType()) {
 				acc.setAvailAmount(acc.getAvailAmount().add(de.getAmount()));
 				acc.setTransitAmount(acc.getTransitAmount().subtract(de.getAmount()));
 				acc.setUpdateTime(current);
+				flow.setAccId(acc.getAccId());
+				flow.setFlowAmount(de.getAmount());
+				flow.setFlowDesc("确认充值操作,资金从transitAmount进入到availAmount");
+				flow.setCreateTime(current);
+				flow.setUpdateTime(current);
+				flows.add(flow);
 				return;
 			}
 			if (OperationType.Minus.getType() == de.getOperateType()) {
 				acc.setTransitAmount(acc.getTransitAmount().subtract(de.getAmount()));
 				acc.setUpdateTime(current);
+				flow.setAccId(acc.getAccId());
+				flow.setFlowAmount(de.getAmount());
+				flow.setFlowDesc("确认支付操作,资金从transitAmount扣除");
+				flow.setCreateTime(current);
+				flow.setUpdateTime(current);
+				flows.add(flow);
 			}
 		});
 		as.updateBatchById(accounts);
+		cashflow.insertBatch(flows);
 		return CallbackState.CallbackCommitSuccess;
 	}
 
@@ -185,20 +219,35 @@ public class RequestServiceImpl extends SuperServiceImpl<RequestMapper, RequestE
 		});
 		LocalDateTime current = LocalDateTime.now();
 		List<AccountEntity> accounts = as.selectBatchIds(accIdList);
+		List<CashflowEntity> flows = new ArrayList<>(accounts.size());
 		accounts.forEach(acc -> {
+			CashflowEntity flow = new CashflowEntity();
 			RequestDetailEntity de = map.get(acc.getAccId());
 			if (OperationType.Plus.getType() == de.getOperateType()) {
 				acc.setTransitAmount(acc.getTransitAmount().subtract(de.getAmount()));
 				acc.setUpdateTime(current);
+				flow.setAccId(acc.getAccId());
+				flow.setFlowAmount(de.getAmount());
+				flow.setFlowDesc("取消充值操作,资金从transitAmount扣除");
+				flow.setCreateTime(current);
+				flow.setUpdateTime(current);
+				flows.add(flow);
 				return;
 			}
 			if (OperationType.Minus.getType() == de.getOperateType()) {
 				acc.setAvailAmount(acc.getAvailAmount().add(de.getAmount()));
 				acc.setTransitAmount(acc.getTransitAmount().subtract(de.getAmount()));
 				acc.setUpdateTime(current);
+				flow.setAccId(acc.getAccId());
+				flow.setFlowAmount(de.getAmount());
+				flow.setFlowDesc("取消支付操作,资金从transitAmount回退到availAmount");
+				flow.setCreateTime(current);
+				flow.setUpdateTime(current);
+				flows.add(flow);
 			}
 		});
 		as.updateBatchById(accounts);
+		cashflow.insertBatch(flows);
 		return CallbackState.CallbackRollbackSuccess;
 	}
 
